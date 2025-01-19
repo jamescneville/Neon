@@ -18,7 +18,8 @@ class dGrid(object):
     """
 
     def __init__(
-            self, backend: Backend = None,
+            self,
+            backend: Backend = None,
             dim: Index_3d = Index_3d(10, 10, 10),
             sparsity: np.ndarray = None,
             stencil: List[List[int]] = []

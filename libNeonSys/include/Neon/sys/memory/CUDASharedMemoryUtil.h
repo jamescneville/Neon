@@ -1,10 +1,14 @@
 #pragma once
+#if !defined(NEON_WARP_COMPILATION)
 #include <cuda_runtime.h>
+#endif
 #include "Neon/core/types/Macros.h"
 
 #ifdef NEON_PLACE_CUDA_DEVICE
+#if !defined(NEON_WARP_COMPILATION)
 #include <cooperative_groups.h>
 #include <cooperative_groups/memcpy_async.h>
+#endif
 #endif
 
 namespace Neon::sys {

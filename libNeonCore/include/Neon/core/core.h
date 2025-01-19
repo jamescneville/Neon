@@ -47,7 +47,6 @@
 #include "Neon/core/tools/Report.h"
 #include "Neon/core/tools/development/workInProgress.h"
 #include "Neon/core/tools/metaprogramming.h"
-
 #endif
 
 

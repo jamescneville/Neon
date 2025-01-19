@@ -1,9 +1,10 @@
 #pragma once
-
+#if !defined(NEON_WARP_COMPILATION)
 #include <array>
 #include <iostream>
 #include <string>
 #include <vector>
+#endif
 
 #include "Neon/core/types/DataUse.h"
 
@@ -33,10 +34,11 @@ struct ExecutionUtils
      * @return
      */
     static auto toInt(Neon::Execution option) -> int;
+#if !defined(NEON_WARP_COMPILATION)
 
     static auto getAllOptions()
         -> const std::array<Execution, ExecutionUtils::numConfigurations>&;
-
+#endif
     static auto getCompatibleOptions(Neon::DataUse dataUse)
         -> std::vector<Execution>;
 
@@ -47,7 +49,9 @@ struct ExecutionUtils
     static auto fromInt(int val) -> Execution;
 
    private:
+#if !defined(NEON_WARP_COMPILATION)
     static constexpr std::array<Execution, ExecutionUtils::numConfigurations> mAllOptions{Execution::device, Execution::host};
+#endif
 };
 
 /**

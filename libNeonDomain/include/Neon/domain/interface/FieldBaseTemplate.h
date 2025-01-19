@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Neon/core/core.h"
-#include "Neon/core/tools/io/IODense.h"
 #include "Neon/core/types/Macros.h"
 
 #include "Neon/set/DevSet.h"

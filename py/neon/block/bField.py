@@ -4,7 +4,7 @@ import neon
 import warp as wp
 
 
-# from .dPartition import dPartitionInt as dPartitionInt
+# from .bPartition import bPartitionInt as bPartitionInt
 
 
 class bField(object):
@@ -37,7 +37,7 @@ class bField(object):
     def _set_field_type(self):
         self.type_mapping = self.neon_gate.get_type_mapping(self.dtype)
         self.suffix = f'_{self.type_mapping["suffix"]}'
-        self.Partition_type = getattr(neon.dense.dPartition, f'dPartition{self.suffix}')
+        self.Partition_type = getattr(neon.block.bPartition, f'bPartition{self.suffix}')
 
 
     def _help_load_api(self):

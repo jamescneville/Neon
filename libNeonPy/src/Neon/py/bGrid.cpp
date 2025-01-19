@@ -486,6 +486,57 @@ DO_EXPORT(float32, 2, bGrid_bField_update_device_data, int, void*, fieldHandle, 
 DO_EXPORT(float64, 2, bGrid_bField_update_device_data, int, void*, fieldHandle, int, streamSetId);
 
 
+template <typename T>
+auto bGrid_bField_to_vti(
+    void*       fieldHandle,
+    const char* fname,
+    const char* fieldName)
+    -> int
+{
+#ifdef NEON_USE_NVTX
+    nvtxRangePush("bGrid_bField_to_vti");
+#endif
+
+    NEON_PY_PRINT_BEGIN(fieldHandle);
+
+    using Grid = Neon::dGrid;
+    using Field = Grid::Field<T, 0>;
+
+    Field* fieldPtr = reinterpret_cast<Field*>(fieldHandle);
+
+    if (fieldPtr == nullptr) {
+        std::cout << "invalid field" << std::endl;
+        return -1;
+    }
+    std::cout << "bGrid_bField_to_vti - " << fname << " - " << fieldName << std::endl;
+    fieldPtr->ioToVtk(fname,
+                      fieldName);
+    //                      bool               includeDomain = false,
+    //                      Neon::IoFileType   ioFileType = Neon::IoFileType::ASCII,
+    //                      bool               isNodeSpace = false
+    // fieldPtr->updateHostData(streamSetId);
+
+#ifdef NEON_USE_NVTX
+    nvtxRangePop();
+#endif
+    NEON_PY_PRINT_END(fieldHandle);
+
+    return 0;
+}
+
+DO_EXPORT(int8, 3, bGrid_bField_to_vti, int, void*, fieldHandle, const char*, fname, const char*, fieldName);
+DO_EXPORT(uint8, 3, bGrid_bField_to_vti, int, void*, fieldHandle, const char*, fname, const char*, fieldName);
+DO_EXPORT(bool, 3, bGrid_bField_to_vti, int, void*, fieldHandle, const char*, fname, const char*, fieldName);
+
+DO_EXPORT(int32, 3, bGrid_bField_to_vti, int, void*, fieldHandle, const char*, fname, const char*, fieldName);
+DO_EXPORT(uint32, 3, bGrid_bField_to_vti, int, void*, fieldHandle, const char*, fname, const char*, fieldName);
+
+DO_EXPORT(int64, 3, bGrid_bField_to_vti, int, void*, fieldHandle, const char*, fname, const char*, fieldName);
+DO_EXPORT(uint64, 3, bGrid_bField_to_vti, int, void*, fieldHandle, const char*, fname, const char*, fieldName);
+
+DO_EXPORT(float32, 3, bGrid_bField_to_vti, int, void*, fieldHandle, const char*, fname, const char*, fieldName);
+DO_EXPORT(float64, 3, bGrid_bField_to_vti, int, void*, fieldHandle, const char*, fname, const char*, fieldName);
+
 extern "C" auto bGrid_bSpan_get_member_field_offsets(size_t* offsets, size_t* length)
     -> void
 {

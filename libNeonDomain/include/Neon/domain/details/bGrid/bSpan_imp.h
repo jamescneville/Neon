@@ -1,5 +1,7 @@
+#if !defined(NEON_WARP_COMPILATION)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winvalid-offsetof"
+#endif
 #include "Neon/domain/details/bGrid/bSpan.h"
 
 namespace Neon::domain::details::bGrid {
@@ -65,6 +67,26 @@ inline void bSpan<SBlock>::getOffsets(size_t* offsets, size_t* length) {
 }
 #endif
 
+template <typename SBlock>
+NEON_CUDA_HOST_DEVICE inline auto
+bSpan<SBlock>::setAndValidate_warp([[maybe_unused]] Idx& bidx) const -> bool
+{
+#if !defined(NEON_WARP_COMPILATION)
+    NEON_THROW_UNSUPPORTED_OPERATION("Operation supported only on GPU");
+#else
+    bidx.mDataBlockIdx = blockIdx.x + mFirstDataBlockOffset;
+    bidx.mInDataBlockIdx.x = threadIdx.x;
+    bidx.mInDataBlockIdx.y = threadIdx.y;
+    bidx.mInDataBlockIdx.z = threadIdx.z;
+
+    const bool isActive = mActiveMask[bidx.mDataBlockIdx].isActive(bidx.mInDataBlockIdx.x, bidx.mInDataBlockIdx.y, bidx.mInDataBlockIdx.z);
+
+    return isActive;
+#endif
+}
+
 }  // namespace Neon::domain::details::bGrid
 
+#if !defined(NEON_WARP_COMPILATION)
 #pragma GCC diagnostic pop
+#endif

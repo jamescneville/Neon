@@ -44,6 +44,8 @@ class bSpan
     NEON_CUDA_HOST_DEVICE inline auto setAndValidateGPUDevice(
         Idx& bidx) const -> bool;
 
+    auto setAndValidate_warp([[maybe_unused]] Idx& bidx) const -> bool;
+
     #if !defined(NEON_WARP_COMPILATION)
     // Function to get offsets of member variables
     static void getOffsets(size_t* offsets, size_t* length);

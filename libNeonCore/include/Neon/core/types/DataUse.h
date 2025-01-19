@@ -36,6 +36,7 @@ struct DataUseUtils
      */
     static auto toString(Neon::DataUse option) -> const char*;
 };
+#if !defined(NEON_COMPILER_CUDA)
 
 /**
  * operator<<
@@ -45,7 +46,7 @@ struct DataUseUtils
  * @return
  */
 std::ostream& operator<<(std::ostream& os, Neon::DataUse const& m);
-
+#endif
 }  // namespace Neon
 
 

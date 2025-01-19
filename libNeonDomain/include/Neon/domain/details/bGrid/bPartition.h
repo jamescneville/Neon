@@ -1,11 +1,10 @@
 #pragma once
-
-#include "Neon/domain/details/bGrid/bIndex.h"
-#include "Neon/domain/details/bGrid/bSpan.h"
-
-#include "Neon/domain/interface/NghData.h"
-
-#include "Neon/sys/memory/CUDASharedMemoryUtil.h"
+#include "Neon/domain/tools/GridTransformer.h"
+//
+// #include "Neon/domain/details/bGrid/bIndex.h"
+// #include "Neon/domain/details/bGrid/bSpan.h"
+// #include "Neon/domain/interface/NghData.h"
+// #include "Neon/sys/memory/CUDASharedMemoryUtil.h"
 
 namespace Neon::domain::details::bGrid {
 
@@ -98,7 +97,7 @@ class bPartition
                int        card,
                T          defaultValue)
         const -> NghData;
-
+#if !defined(NEON_WARP_COMPILATION)
     template <int xOff,
               int yOff,
               int zOff,
@@ -110,7 +109,7 @@ class bPartition
                LambdaVALID    funIfValid,
                LambdaNOTValid funIfNOTValid = nullptr)
         const -> std::enable_if_t<std::is_invocable_v<LambdaVALID, T> && (std::is_invocable_v<LambdaNOTValid, T> || std::is_same_v<LambdaNOTValid, void*>), void>;
-
+#endif
     template <int xOff,
               int yOff,
               int zOff>
@@ -139,13 +138,14 @@ class bPartition
     NEON_CUDA_HOST_DEVICE
     auto mem() const -> T const *;
 
+#if !defined(NEON_WARP_COMPILATION)
     /**
      * Gets the Idx for in the block view space.
      */
     NEON_CUDA_HOST_DEVICE inline auto
     getBlockViewIdx(const Idx& cell)
         const -> BlockViewGridIdx;
-
+#endif
 
     NEON_CUDA_HOST_DEVICE inline auto
     helpGetPitch(const Idx& cell, int card)
@@ -154,11 +154,11 @@ class bPartition
     NEON_CUDA_HOST_DEVICE inline auto
     helpGetValidIdxPitchExplicit(const Idx& idx, int card)
         const -> uint32_t;
-
+#if !defined(NEON_WARP_COMPILATION)
     NEON_CUDA_HOST_DEVICE inline auto
     helpNghPitch(const Idx& nghIdx, int card)
         const -> std::tuple<bool, uint32_t>;
-
+#endif
     NEON_CUDA_HOST_DEVICE inline auto
     helpGetNghIdx(const Idx& idx, const NghIdx& offset)
         const -> Idx;

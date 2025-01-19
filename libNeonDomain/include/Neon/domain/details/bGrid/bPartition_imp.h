@@ -1,8 +1,5 @@
 #pragma once
 
-#include "Neon/domain/details/bGrid/bGrid.h"
-#include "Neon/domain/details/bGrid/bSpan.h"
-
 namespace Neon::domain::details::bGrid {
 
 template <typename T, int C, typename SBlock>
