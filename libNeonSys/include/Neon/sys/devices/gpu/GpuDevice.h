@@ -163,6 +163,7 @@ class GpuDevice : public DeviceInterface
             cudaFuncAttributes func_attr = cudaFuncAttributes();
             auto               error = cudaFuncGetAttributes(&func_attr, fun);
             if (error != cudaSuccess) {
+                std::cout <<"HERE is the ERROR!!! "<< cudaGetErrorString(error) << std::endl;
                 NeonException exc;
                 exc << "\n Error: " << cudaGetErrorString(error);
                 NEON_THROW(exc);
