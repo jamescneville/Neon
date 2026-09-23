@@ -35,7 +35,8 @@ class Container:
     def __init__(self,
                  name,
                  loading_lambda=None,
-                 execution: neon.Execution = neon.Execution.device()):
+                 execution: neon.Execution = neon.Execution.device(),
+                 launch_bounds=None):
 
         if loading_lambda is None:
             raise Exception('Container: Invalid loading lambda')
@@ -47,6 +48,11 @@ class Container:
 
         self.name = name
         self.execution = execution
+        # Passed straight through to wp.kernel(...) for every kernel this
+        # container compiles. See warp's kernel() docs for the accepted
+        # forms (int, or (maxThreadsPerBlock, minBlocksPerMultiprocessor)).
+        # None means "let Warp/nvcc pick", i.e. today's unmodified behavior.
+        self.launch_bounds = launch_bounds
 
         container_parser: neon.Loader = neon.Loader(execution=execution,
                                                     gpu_id=0,
@@ -293,7 +299,7 @@ class Container:
 
             kernel.__name__ = f"{self.name}_warp_dv{_data_view_ordinal(data_view.data_view)}"
             kernel.__qualname__ = kernel.__name__
-            kernel = wp.kernel(module="unique", enable_backward=False)(kernel)
+            kernel = wp.kernel(module="unique", enable_backward=False, launch_bounds=self.launch_bounds)(kernel)
 
             return kernel
 
@@ -308,7 +314,7 @@ class Container:
 
             kernel.__name__ = f"{self.name}_neon_dv{_data_view_ordinal(data_view.data_view)}"
             kernel.__qualname__ = kernel.__name__
-            kernel = wp.kernel(module="unique", enable_backward=False)(kernel)
+            kernel = wp.kernel(module="unique", enable_backward=False, launch_bounds=self.launch_bounds)(kernel)
 
             return kernel
 
@@ -344,7 +350,7 @@ class Container:
 
             kernel.__name__ = f"{self.name}_L{grid_level}_warp_dv{_data_view_ordinal(data_view.data_view)}"
             kernel.__qualname__ = kernel.__name__
-            kernel = wp.kernel(module="unique", enable_backward=False)(kernel)
+            kernel = wp.kernel(module="unique", enable_backward=False, launch_bounds=self.launch_bounds)(kernel)
 
             return kernel
 
@@ -359,7 +365,7 @@ class Container:
 
             kernel.__name__ = f"{self.name}_L{grid_level}_neon_dv{_data_view_ordinal(data_view.data_view)}"
             kernel.__qualname__ = kernel.__name__
-            kernel = wp.kernel(module="unique", enable_backward=False)(kernel)
+            kernel = wp.kernel(module="unique", enable_backward=False, launch_bounds=self.launch_bounds)(kernel)
 
             return kernel
 
@@ -422,14 +428,15 @@ class Container:
                            data_view=data_view)
 
     @staticmethod
-    def factory(name=None):
+    def factory(name=None, launch_bounds=None):
         def factory_decorator(loading_lambda_generator):
             def container_generator(*args, **kwargs):
                 loading_lambda = loading_lambda_generator(*args, **kwargs)
                 local_name = copy.deepcopy(name)
                 if local_name is None:
                     local_name = f"{loading_lambda.__name__}_neon_container"
-                container = Container(loading_lambda=loading_lambda, name=local_name)
+                container = Container(loading_lambda=loading_lambda, name=local_name,
+                                      launch_bounds=launch_bounds)
                 return container
 
             return container_generator
@@ -602,30 +609,31 @@ class Container:
 
         return factory_decorator
 
-def container(name_or_func=None, *, name=None):
+def container(name_or_func=None, *, name=None, launch_bounds=None):
     """
     Neon kernel decorator that can be used with or without parentheses.
-    
+
     Usage:
         @neon.kernel()
         def my_kernel(...): ...
-        
+
         @neon.kernel
         def my_kernel(...): ...
-        
+
         @neon.kernel(name="custom_name")
         def my_kernel(...): ...
     """
     def factory_decorator(loading_lambda_generator):
         # get the name of the decorated function
         name_decorated = loading_lambda_generator.__name__
-            
+
         def container_generator(*args, **kwargs):
             loading_lambda = loading_lambda_generator(*args, **kwargs)
             local_name = copy.deepcopy(name)
             if local_name is None:
                 local_name = f"{name_decorated}_neon_container"
-            container = Container(loading_lambda=loading_lambda, name=local_name)
+            container = Container(loading_lambda=loading_lambda, name=local_name,
+                                  launch_bounds=launch_bounds)
             return container
 
         return container_generator
@@ -634,28 +642,29 @@ def container(name_or_func=None, *, name=None):
     # name_or_func will be the function being decorated
     if callable(name_or_func):
         return factory_decorator(name_or_func)
-    
+
     # Case 2: @neon.kernel() or @neon.kernel(name="...")
     # name_or_func will be None or a string, name parameter takes precedence
     else:
         # If name is provided as keyword argument, use it
         # Otherwise use name_or_func if it's a string
         effective_name = name if name is not None else name_or_func
-        
+
         def wrapper(loading_lambda_generator):
             # get the name of the decorated function
             name_decorated = loading_lambda_generator.__name__
-                
+
             def container_generator(*args, **kwargs):
                 loading_lambda = loading_lambda_generator(*args, **kwargs)
                 local_name = copy.deepcopy(effective_name)
                 if local_name is None:
                     local_name = f"{name_decorated}_neon_container"
-                container = Container(loading_lambda=loading_lambda, name=local_name)
+                container = Container(loading_lambda=loading_lambda, name=local_name,
+                                      launch_bounds=launch_bounds)
                 return container
 
             return container_generator
-        
+
         return wrapper
 
 # Create an alias for wp.func
