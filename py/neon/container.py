@@ -13,6 +13,15 @@ import warp as wp
 import neon
 
 
+def _data_view_ordinal(dv) -> int:
+    """
+    DataView.data_view has been observed as either a single-character string
+    or a plain int depending on the installed neon build; normalize to int
+    so kernel-name construction doesn't break across builds.
+    """
+    return ord(dv) if isinstance(dv, str) else int(dv)
+
+
 class Container:
     # define an enum class
     class ContainerRuntime(Enum):
@@ -282,7 +291,7 @@ class Container:
                 # wp.neon_print(myIdx)
                 compute_lambda(myIdx)
 
-            kernel.__name__ = f"{self.name}_warp_dv{ord(data_view.data_view)}"
+            kernel.__name__ = f"{self.name}_warp_dv{_data_view_ordinal(data_view.data_view)}"
             kernel.__qualname__ = kernel.__name__
             kernel = wp.kernel(module="unique", enable_backward=False)(kernel)
 
@@ -297,7 +306,7 @@ class Container:
                     # wp.neon_print(myIdx)
                     compute_lambda(myIdx)
 
-            kernel.__name__ = f"{self.name}_neon_dv{ord(data_view.data_view)}"
+            kernel.__name__ = f"{self.name}_neon_dv{_data_view_ordinal(data_view.data_view)}"
             kernel.__qualname__ = kernel.__name__
             kernel = wp.kernel(module="unique", enable_backward=False)(kernel)
 
@@ -333,7 +342,7 @@ class Container:
                 # wp.neon_print(myIdx)
                 compute_lambda(myIdx)
 
-            kernel.__name__ = f"{self.name}_L{grid_level}_warp_dv{ord(data_view.data_view)}"
+            kernel.__name__ = f"{self.name}_L{grid_level}_warp_dv{_data_view_ordinal(data_view.data_view)}"
             kernel.__qualname__ = kernel.__name__
             kernel = wp.kernel(module="unique", enable_backward=False)(kernel)
 
@@ -348,7 +357,7 @@ class Container:
                     # wp.neon_print(myIdx)
                     compute_lambda(myIdx)
 
-            kernel.__name__ = f"{self.name}_L{grid_level}_neon_dv{ord(data_view.data_view)}"
+            kernel.__name__ = f"{self.name}_L{grid_level}_neon_dv{_data_view_ordinal(data_view.data_view)}"
             kernel.__qualname__ = kernel.__name__
             kernel = wp.kernel(module="unique", enable_backward=False)(kernel)
 
