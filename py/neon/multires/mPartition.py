@@ -454,6 +454,55 @@ def register_builtins() -> None:
             missing_grad=True,
         )
 
+        # Dedicated deterministic fine-to-coarse restriction accumulator.
+        #
+        # Production population fields remain FP32/FP64.  The restriction
+        # accumulator is always int64.  FP32 deposits use a 2^48 encoding
+        # performed in FP64 native arithmetic, preserving all meaningful FP32
+        # LBM population bits while retaining order-independent integer sums.
+        if Type == wp.int64:
+            wp.context.add_builtin(
+                "neon_mres_lbm_zero_fixed",
+                input_types={"partition": Partition,
+                             'idx': neon.block.bIndex,
+                             'card': wp.int32,
+                             'ngh_idx': neon.Ngh_idx},
+                value_type=None,
+                missing_grad=True,
+            )
+            wp.context.add_builtin(
+                "neon_mres_lbm_store_fixed_f32",
+                input_types={"partition": Partition,
+                             'idx': neon.block.bIndex,
+                             'card': wp.int32,
+                             'ngh_idx': neon.Ngh_idx,
+                             'value': wp.float32},
+                value_type=None,
+                missing_grad=True,
+            )
+            wp.context.add_builtin(
+                "neon_mres_lbm_store_fixed_f64",
+                input_types={"partition": Partition,
+                             'idx': neon.block.bIndex,
+                             'card': wp.int32,
+                             'ngh_idx': neon.Ngh_idx,
+                             'value': wp.float64},
+                value_type=None,
+                missing_grad=True,
+            )
+            wp.context.add_builtin(
+                "neon_mres_lbm_decode_fixed_f32",
+                input_types={"fixed": wp.int64},
+                value_type=wp.float64,
+                missing_grad=True,
+            )
+            wp.context.add_builtin(
+                "neon_mres_lbm_decode_fixed_f64",
+                input_types={"fixed": wp.int64},
+                value_type=wp.float64,
+                missing_grad=True,
+            )
+
         wp.context.add_builtin(
             "neon_read_coarser_ngh",
             input_types={"partition": Partition,
