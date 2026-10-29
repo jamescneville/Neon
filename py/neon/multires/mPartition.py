@@ -462,15 +462,6 @@ def register_builtins() -> None:
         # LBM population bits while retaining order-independent integer sums.
         if Type == wp.int64:
             wp.context.add_builtin(
-                "neon_mres_lbm_zero_fixed",
-                input_types={"partition": Partition,
-                             'idx': neon.block.bIndex,
-                             'card': wp.int32,
-                             'ngh_idx': neon.Ngh_idx},
-                value_type=None,
-                missing_grad=True,
-            )
-            wp.context.add_builtin(
                 "neon_mres_lbm_store_fixed_f32",
                 input_types={"partition": Partition,
                              'idx': neon.block.bIndex,
