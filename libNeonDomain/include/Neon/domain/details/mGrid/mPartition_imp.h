@@ -2,6 +2,23 @@
 
 namespace Neon::domain::details::mGrid {
 
+// Count trailing zeros of a non-zero 32-bit value (log2 of a power of two).
+NEON_CUDA_HOST_DEVICE inline auto mPartitionCtz(uint32_t v) -> uint32_t
+{
+#if defined(__CUDA_ARCH__)
+    return static_cast<uint32_t>(__ffs(static_cast<int>(v)) - 1);
+#elif defined(__GNUC__)
+    return static_cast<uint32_t>(__builtin_ctz(v));
+#else
+    uint32_t n = 0;
+    while ((v & 1u) == 0u) {
+        v >>= 1;
+        ++n;
+    }
+    return n;
+#endif
+}
+
 template <typename T, int C, typename SBlock>
 mPartition<T, C, SBlock>::mPartition()
     : Neon::domain::details::bGrid::bPartition<T, C, SBlock>(),
@@ -220,9 +237,19 @@ NEON_CUDA_HOST_DEVICE inline auto mPartition<T, C, SBlock>::getParent(const Idx&
         parentCell.mDataBlockIdx = mParentBlockID[cell.mDataBlockIdx];
         const Neon::index_3d g = this->getGlobalIndex(cell);
         const uint32_t       sp = getSpacing(mLevel);
-        parentCell.mInDataBlockIdx.x = (g.x / sp) % SBlock::memBlockSizeX;
-        parentCell.mInDataBlockIdx.y = (g.y / sp) % SBlock::memBlockSizeY;
-        parentCell.mInDataBlockIdx.z = (g.z / sp) % SBlock::memBlockSizeZ;
+        if ((sp & (sp - 1u)) == 0u) {
+            // Spacing is a power of two (refinement factor 2): replace the three runtime
+            // integer divisions with one shift count and three shifts. Bit-identical to g / sp
+            // for non-negative g (which is converted to unsigned exactly as the division does).
+            const uint32_t sh = mPartitionCtz(sp);
+            parentCell.mInDataBlockIdx.x = (static_cast<uint32_t>(g.x) >> sh) % SBlock::memBlockSizeX;
+            parentCell.mInDataBlockIdx.y = (static_cast<uint32_t>(g.y) >> sh) % SBlock::memBlockSizeY;
+            parentCell.mInDataBlockIdx.z = (static_cast<uint32_t>(g.z) >> sh) % SBlock::memBlockSizeZ;
+        } else {
+            parentCell.mInDataBlockIdx.x = (g.x / sp) % SBlock::memBlockSizeX;
+            parentCell.mInDataBlockIdx.y = (g.y / sp) % SBlock::memBlockSizeY;
+            parentCell.mInDataBlockIdx.z = (g.z / sp) % SBlock::memBlockSizeZ;
+        }
     }
     return parentCell;
 }
@@ -254,6 +281,32 @@ NEON_CUDA_HOST_DEVICE inline auto mPartition<T, C, SBlock>::hasParent(const Idx&
         return false;
     }
     return getParent(cell).isActive();
+}
+
+template <typename T, int C, typename SBlock>
+NEON_CUDA_HOST_DEVICE inline auto mPartition<T, C, SBlock>::getUncleFromParent(const Idx&   parent,
+                                                                               const NghIdx direction) const -> Idx
+{
+    // Same as getUncle() but takes an already-computed parent, so callers that need several
+    // uncles of the same cell (e.g. restriction deposits over all populations) call getParent once.
+    Idx uncle = parent;
+    if (uncle.isActive()) {
+        uncle = this->helpGetNghIdx(uncle, direction, mParentNeighbourBlocks);
+        if (uncle.mDataBlockIdx != std::numeric_limits<typename Idx::DataBlockIdx>::max()) {
+            if (!this->isActive(uncle, mMaskUpperLevel)) {
+                uncle.mDataBlockIdx = std::numeric_limits<typename Idx::DataBlockIdx>::max();
+            }
+        }
+    }
+    return uncle;
+}
+
+template <typename T, int C, typename SBlock>
+NEON_CUDA_HOST_DEVICE inline auto mPartition<T, C, SBlock>::uncleValAt(const Idx& uncle,
+                                                                       int        card) const -> T&
+{
+    assert(this->isActive(uncle, mMaskUpperLevel));
+    return mMemParent[this->helpGetPitch(uncle, card)];
 }
 
 template <typename T, int C, typename SBlock>

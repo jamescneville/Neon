@@ -146,6 +146,20 @@ class mPartition : public Neon::domain::details::bGrid::bPartition<T, C, SBlock>
                                                const NghIdx direction) const -> Idx;
 
     /**
+     * Same as getUncle() but starting from an already-computed parent (see getParent()).
+     * Lets callers that need many uncles of one cell pay for getParent() once.
+     */
+    NEON_CUDA_HOST_DEVICE inline auto getUncleFromParent(const Idx&   parent,
+                                                         const NghIdx direction) const -> Idx;
+
+    /**
+     * Reference to the value stored at an uncle cell returned by getUncle()/getUncleFromParent().
+     * The caller is responsible for checking that the uncle is active (only asserted here).
+     */
+    NEON_CUDA_HOST_DEVICE inline auto uncleValAt(const Idx& uncle,
+                                                 int        card) const -> T&;
+
+    /**
      * The uncle of a cell at level L is a cell at level L+1 and is a neighbor to the cell's parent.
      * This function returns the value of a give cell in a certain direction w.r.t the cell's parent along a certain cardinality.
      * @param cell the main cell at level L

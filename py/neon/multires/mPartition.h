@@ -259,12 +259,16 @@ CUDA_CALLABLE inline auto neon_mres_uncle_offset(
         off(cell.mInDataBlockIdx.z % Neon::domain::details::StaticBlockDefault::userBlockSizeZ, qDir.z));
 }
 
+// Resolve, in one pass, whether population qDir of `cell` must be deposited into a coarse
+// (uncle) cell and, if so, which one. getParent() is evaluated once and reused for both the
+// uncle check and the target lookup (previously: twice here, plus once more in the store).
+// Behaviour is identical to the former neon_mres_has_restriction_target + uncleVal pair.
 template <typename T>
-CUDA_CALLABLE inline auto neon_mres_has_restriction_target(
+CUDA_CALLABLE inline auto neon_mres_restriction_target(
     const NeonMultiresPartition<T>& p,
     const NeonBlockIdx&             cell,
     const NeonNghIdx&               qDir,
-    Neon::int8_3d&                  csDir) -> bool
+    NeonBlockIdx&                   target) -> bool
 {
     if (qDir.x == 0 && qDir.y == 0 && qDir.z == 0) {
         return false;
@@ -276,15 +280,20 @@ CUDA_CALLABLE inline auto neon_mres_has_restriction_target(
         return false;
     }
 
-    const auto uncle = p.getUncle(cell, uncleDir);
+    const auto parent = p.getParent(cell);
+    const auto uncle = p.getUncleFromParent(parent, uncleDir);
     if (!uncle.isActive()) {
         return false;
     }
 
-    csDir = uncleDir - qDir;
-    const auto cs = p.getUncle(cell, csDir);
-    const auto csChild = p.helpGetNghIdx(cell, csDir);
-    return cs.isActive() && p.isActive(csChild);
+    const Neon::int8_3d csDir = uncleDir - qDir;
+    const auto          cs = p.getUncleFromParent(parent, csDir);
+    const auto          csChild = p.helpGetNghIdx(cell, csDir);
+    if (cs.isActive() && p.isActive(csChild)) {
+        target = cs;
+        return true;
+    }
+    return false;
 }
 
 CUDA_CALLABLE inline void neon_mres_atomic_add_int64(int64_t* address, int64_t deposit)
@@ -329,26 +338,26 @@ CUDA_CALLABLE inline auto neon_mres_lbm_store_fixed_f32(
     const NeonNghIdx&                     qDir,
     const float                           cellVal) -> void
 {
-    Neon::int8_3d csDir(0, 0, 0);
-    if (!neon_mres_has_restriction_target(p, cell, qDir, csDir)) {
+    NeonBlockIdx target;
+    if (!neon_mres_restriction_target(p, cell, qDir, target)) {
         return;
     }
 
-    // Convert the stored FP32 value to FP64 before applying the power-of-two
-    // scale.  For normal LBM populations this is an exact integer mapping, not
-    // a lossy per-deposit quantization as in the former int32/2^27 path.
     if (!(cellVal > -4.0f && cellVal < 4.0f)) {
         neon_mres_fixed_range_error();
         return;
     }
-    const double scaled = static_cast<double>(cellVal) *
-                          kNeonMresFixedScaleFloat32;
 #ifdef __CUDA_ARCH__
-    const int64_t fixed = static_cast<int64_t>(__double2ll_rn(scaled));
+    // Scaling by 2^48 is exact in FP32 for |x| < 4 (power-of-two scale, no overflow), and
+    // __float2ll_rn rounds that exact value to nearest-even, so the result is bit-identical to
+    // the former double-precision path. This keeps the deposit off the (1/64-rate) FP64 pipe.
+    const int64_t fixed = static_cast<int64_t>(
+        __float2ll_rn(cellVal * static_cast<float>(kNeonMresFixedScaleFloat32)));
 #else
+    const double  scaled = static_cast<double>(cellVal) * kNeonMresFixedScaleFloat32;
     const int64_t fixed = static_cast<int64_t>(llrint(scaled));
 #endif
-    neon_mres_atomic_add_int64(&p.uncleVal(cell, csDir, q), fixed);
+    neon_mres_atomic_add_int64(&p.uncleValAt(target, q), fixed);
 }
 
 CUDA_CALLABLE inline auto neon_mres_lbm_store_fixed_f64(
@@ -358,8 +367,8 @@ CUDA_CALLABLE inline auto neon_mres_lbm_store_fixed_f64(
     const NeonNghIdx&                     qDir,
     const double                          cellVal) -> void
 {
-    Neon::int8_3d csDir(0, 0, 0);
-    if (!neon_mres_has_restriction_target(p, cell, qDir, csDir)) {
+    NeonBlockIdx target;
+    if (!neon_mres_restriction_target(p, cell, qDir, target)) {
         return;
     }
     if (!(cellVal > -16.0 && cellVal < 16.0)) {
@@ -372,7 +381,7 @@ CUDA_CALLABLE inline auto neon_mres_lbm_store_fixed_f64(
 #else
     const int64_t fixed = static_cast<int64_t>(llrint(scaled));
 #endif
-    neon_mres_atomic_add_int64(&p.uncleVal(cell, csDir, q), fixed);
+    neon_mres_atomic_add_int64(&p.uncleValAt(target, q), fixed);
 }
 
 CUDA_CALLABLE inline auto neon_mres_lbm_decode_fixed_f32(
