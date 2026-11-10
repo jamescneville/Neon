@@ -13,13 +13,28 @@ import warp as wp
 import neon
 
 
+def _wp_kernel(kernel, launch_bounds):
+    """
+    wp.kernel(..., launch_bounds=...) - some installed warp builds predate the
+    launch_bounds kwarg entirely and reject it outright, so only pass it
+    through when a non-default value was actually requested.
+    """
+    kwargs = dict(module="unique", enable_backward=False)
+    if launch_bounds is not None:
+        kwargs["launch_bounds"] = launch_bounds
+    return wp.kernel(**kwargs)(kernel)
+
+
 def _data_view_ordinal(dv) -> int:
     """
-    DataView.data_view has been observed as either a single-character string
-    or a plain int depending on the installed neon build; normalize to int
-    so kernel-name construction doesn't break across builds.
+    DataView.data_view has been observed as a single-character string, a
+    single byte (bytes), or a plain int depending on the installed neon
+    build; normalize to int so kernel-name construction doesn't break across
+    builds.
     """
-    return ord(dv) if isinstance(dv, str) else int(dv)
+    if isinstance(dv, (str, bytes)):
+        return ord(dv)
+    return int(dv)
 
 
 class Container:
@@ -299,7 +314,7 @@ class Container:
 
             kernel.__name__ = f"{self.name}_warp_dv{_data_view_ordinal(data_view.data_view)}"
             kernel.__qualname__ = kernel.__name__
-            kernel = wp.kernel(module="unique", enable_backward=False, launch_bounds=self.launch_bounds)(kernel)
+            kernel = _wp_kernel(kernel, self.launch_bounds)
 
             return kernel
 
@@ -314,7 +329,7 @@ class Container:
 
             kernel.__name__ = f"{self.name}_neon_dv{_data_view_ordinal(data_view.data_view)}"
             kernel.__qualname__ = kernel.__name__
-            kernel = wp.kernel(module="unique", enable_backward=False, launch_bounds=self.launch_bounds)(kernel)
+            kernel = _wp_kernel(kernel, self.launch_bounds)
 
             return kernel
 
@@ -331,7 +346,6 @@ class Container:
                                   dev_idx=gpu_id,
                                   data_view=data_view,
                                   )
-
         loader: neon.Loader = neon.Loader(execution=execution,
                                           gpu_id=gpu_id,
                                           data_view=data_view)
@@ -350,7 +364,7 @@ class Container:
 
             kernel.__name__ = f"{self.name}_L{grid_level}_warp_dv{_data_view_ordinal(data_view.data_view)}"
             kernel.__qualname__ = kernel.__name__
-            kernel = wp.kernel(module="unique", enable_backward=False, launch_bounds=self.launch_bounds)(kernel)
+            kernel = _wp_kernel(kernel, self.launch_bounds)
 
             return kernel
 
@@ -365,7 +379,7 @@ class Container:
 
             kernel.__name__ = f"{self.name}_L{grid_level}_neon_dv{_data_view_ordinal(data_view.data_view)}"
             kernel.__qualname__ = kernel.__name__
-            kernel = wp.kernel(module="unique", enable_backward=False, launch_bounds=self.launch_bounds)(kernel)
+            kernel = _wp_kernel(kernel, self.launch_bounds)
 
             return kernel
 
