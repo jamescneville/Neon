@@ -42,6 +42,20 @@ class bIndex(ctypes.Structure):
         wp.types.add_type(bIndex, native_name="NeonBlockIdx")
 
         wp.context.add_builtin(
+            "neon_mark_block",
+            input_types={"idx": bIndex, "p0": wp.int32, "p1": wp.int32, "p2": wp.int32, "cls": wp.int32, "nmax": wp.int32},
+            value_type=None,
+            missing_grad=True,
+        )
+
+        wp.context.add_builtin(
+            "neon_mark_voxel",
+            input_types={"idx": bIndex, "p0": wp.int32, "p1": wp.int32, "p2": wp.int32, "cls": wp.int32, "nvox": wp.int32},
+            value_type=None,
+            missing_grad=True,
+        )
+
+        wp.context.add_builtin(
             "neon_print",
             input_types={"idx":bIndex},
             value_type=None,

@@ -10,7 +10,8 @@ class bSpan(ctypes.Structure):
     _fields_ = [
         ("mFirstDataBlockOffset", ctypes.c_uint32),
         ("mActiveMask", ctypes.POINTER(ctypes.c_uint32)),
-        ("mDataView", DataView)
+        ("mDataView", DataView),
+        ("mBlockList", ctypes.c_void_p),
     ]
 
     def __init__(self):

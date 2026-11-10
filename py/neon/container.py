@@ -43,6 +43,9 @@ class Container:
         warp = 1
         neon = 2
 
+    # (container name, grid level) -> (device pointer (int) of a block list, thread blocks to launch); see _get_kernel_mgrid
+    block_lists = {}
+
     # This is a set of compiled executable modules loaded by Warp.
     # When getting kernel hooks, we can retain the module references here
     # to prevent them from being unloaded prematurely.
@@ -158,6 +161,11 @@ class Container:
                               block_size)
 
         self._parsing(container_parser)
+
+        # Class-restricted launch: shrink the grid to the blocks that have work (older libNeonPy: full grid, still correct).
+        _bl = Container.block_lists.get((self.name, self.target_level))
+        if _bl is not None and self.api_set_grid_blocks is not None:
+            self.api_set_grid_blocks(self.container_handle, max(1, int(_bl[1])))
 
     def _parsing(self, parser):
         lib_obj = self.neon_gate.lib
@@ -275,6 +283,12 @@ class Container:
                                  neon.DataView]
         self.api_run.restype = None
         # ------------------------------------------------------------------
+        # warp_container_set_grid_blocks (optional: absent in libNeonPy builds that predate class lists)
+        self.api_set_grid_blocks = getattr(self.neon_gate.lib, f'warp_container_set_grid_blocks_{grid_name}', None)
+        if self.api_set_grid_blocks is not None:
+            self.api_set_grid_blocks.argtypes = [self.neon_gate.handle_type, ctypes.c_int64]
+            self.api_set_grid_blocks.restype = ctypes.c_int
+        # ------------------------------------------------------------------
         # parse_token
 
         # TODOMATT get num devices
@@ -346,6 +360,13 @@ class Container:
                                   dev_idx=gpu_id,
                                   data_view=data_view,
                                   )
+        # Optional class-restricted launch: a device array [count, block ids...] registered under this
+        # container's name and grid level. The pointer is baked into the kernel with the rest of the span, so the array
+        # must outlive the kernel and keep its address (refill it in place).
+        _bl = Container.block_lists.get((self.name, grid_level))
+        if _bl is not None and hasattr(span, "mBlockList"):
+            span.mBlockList = _bl[0]
+
         loader: neon.Loader = neon.Loader(execution=execution,
                                           gpu_id=gpu_id,
                                           data_view=data_view)

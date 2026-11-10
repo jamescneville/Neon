@@ -76,6 +76,10 @@ class bSpan
     typename Idx::DataBlockCount                  mFirstDataBlockOffset;
     typename SBlock::BitMask const* NEON_RESTRICT mActiveMask;
     Neon::DataView                                mDataView;
+    // Optional class block list: [count, id0, id1, ...]. If non-null, only `count` thread blocks do work
+    // and thread block b processes data block mBlockList[1 + b]. Appended LAST so libNeonPy built against the
+    // older 24-byte layout leaves it zeroed (null) when it fills the span; Python sets it afterwards.
+    uint32_t const*                               mBlockList = nullptr;
 };
 }  // namespace Neon::domain::details::bGrid
 

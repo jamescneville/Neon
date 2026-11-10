@@ -173,6 +173,20 @@ struct WarpContainer : Neon::set::internal::ContainerAPI
         }
     }
 
+    // Restrict the STANDARD-view launch to nBlocks thread blocks, keeping the thread block shape and shared memory size.
+    auto setGridBlocks(int64_t nBlocks) -> void
+    {
+        auto& launchParameters = this->setLaunchParameters(Neon::DataView::STANDARD);
+        launchParameters.forEachSeq([&](Neon::SetIdx, Neon::sys::GpuLaunchInfo& info) {
+            const dim3   block = info.cudaBlock();
+            const size_t sharedMem = info.shrMemSize();
+            info.set(Neon::sys::GpuLaunchInfo::mode_e::cudaGridMode,
+                     nBlocks,
+                     Neon::int32_3d(static_cast<int>(block.x), static_cast<int>(block.y), static_cast<int>(block.z)),
+                     sharedMem);
+        });
+    }
+
     virtual auto run(int            streamIdx = 0,
                      Neon::DataView dataView = Neon::DataView::STANDARD) -> void override
     {
@@ -451,6 +465,27 @@ auto warp_container_run(
 
 DO_EXPORT(dGrid, 3, warp_container_run, int, void*, handle, int, streamIdx, Neon::DataView, dataView);
 DO_EXPORT(mGrid, 3, warp_container_run, int, void*, handle, int, streamIdx, Neon::DataView, dataView);
+
+
+// Restrict the STANDARD-view launch of a multi-resolution container to nBlocks thread blocks, keeping the thread block
+// shape and shared memory size. Used with class lists (bSpan::mBlockList) so only the blocks that have work are launched.
+template <typename Grid>
+auto warp_container_set_grid_blocks(
+    void*   handle,
+    int64_t nBlocks) -> int
+{
+    if constexpr (std::is_same_v<typename Grid::Representation, Neon::representation::MultiResolution>) {
+        using InternalGrid = typename Grid::InternalGrid;
+        auto* data = reinterpret_cast<Neon::py::container_warp_data<InternalGrid>*>(handle);
+        data->m_warp_container_ptr->setGridBlocks(nBlocks);
+        return 0;
+    } else {
+        NEON_THROW_UNSUPPORTED_OPTION("warp_container_set_grid_blocks");
+        return -1;
+    }
+}
+
+DO_EXPORT(mGrid, 2, warp_container_set_grid_blocks, int, void*, handle, int64_t, nBlocks);
 
 
 template <typename Grid, typename Type, int Card>
