@@ -9,37 +9,29 @@ namespace wp
 // import types into this namespace
 using NeonBlockIdx = ::Neon::domain::details::bGrid::bIndex<Neon::domain::details::bGrid::BlockDefault>;
 
-// Setup-time helper: flag[4*block + cls] = 1 for the data block holding `a`. The flag array address is passed as
-// three 16-bit chunks (Warp int literals are 32-bit). Writes of the same value from many threads are benign.
-CUDA_CALLABLE inline auto neon_mark_block(const NeonBlockIdx& a, int p0, int p1, int p2, int cls, int nmax) -> void
+// Setup-time helper that flags the voxel `a` in a windowed flag array (4x4x4 data blocks). The array address is passed
+// as three 16-bit chunks (Warp int literals are 32-bit). Layout, in bytes:
+//   [0, 4)   int: first data block of the window (written by the host before each launch)
+//   [8]      set when a flagged voxel lies beyond the window, i.e. another window is needed
+//   [16, ..) flags for classes 0..2, class-major: flag[16 + cls * nblk * 64 + (block - first) * 64 + x + 4y + 16z]
+// nblk is the window size in data blocks. Writes of the same value from many threads are benign.
+CUDA_CALLABLE inline auto neon_mark_voxel(const NeonBlockIdx& a, int p0, int p1, int p2, int cls, int nblk) -> void
 {
     unsigned long long addr = (static_cast<unsigned long long>(static_cast<unsigned int>(p2)) << 32) |
                               (static_cast<unsigned long long>(static_cast<unsigned int>(p1)) << 16) |
                               static_cast<unsigned long long>(static_cast<unsigned int>(p0));
-    unsigned char* flags = reinterpret_cast<unsigned char*>(addr);
-    const int      b = static_cast<int>(a.getDataBlockIdx());
-    if (b >= nmax) {
-        flags[4 * nmax] = 1;  // overflow marker
+    unsigned char*  flags = reinterpret_cast<unsigned char*>(addr);
+    const long long rel = static_cast<long long>(a.getDataBlockIdx()) - static_cast<long long>(*reinterpret_cast<const int*>(flags));
+    if (rel < 0) {
         return;
     }
-    flags[4 * b + cls] = 1;
-}
-
-// Voxel-granular variant: flag[cls * nvox + block * 64 + (x + 4y + 16z)] = 1 (4x4x4 data blocks).
-CUDA_CALLABLE inline auto neon_mark_voxel(const NeonBlockIdx& a, int p0, int p1, int p2, int cls, int nvox) -> void
-{
-    unsigned long long addr = (static_cast<unsigned long long>(static_cast<unsigned int>(p2)) << 32) |
-                              (static_cast<unsigned long long>(static_cast<unsigned int>(p1)) << 16) |
-                              static_cast<unsigned long long>(static_cast<unsigned int>(p0));
-    unsigned char* flags = reinterpret_cast<unsigned char*>(addr);
+    if (rel >= nblk) {
+        flags[8] = 1;
+        return;
+    }
     const long long local = static_cast<long long>(a.getInDataBlockIdx().x) + 4 * static_cast<long long>(a.getInDataBlockIdx().y) +
                             16 * static_cast<long long>(a.getInDataBlockIdx().z);
-    const long long flat = static_cast<long long>(a.getDataBlockIdx()) * 64 + local;
-    if (flat >= nvox) {
-        flags[3LL * nvox] = 1;  // overflow marker
-        return;
-    }
-    flags[static_cast<long long>(cls) * nvox + flat] = 1;
+    flags[16 + (static_cast<long long>(cls) * nblk + rel) * 64 + local] = 1;
 }
 
 CUDA_CALLABLE inline auto neon_print(const NeonBlockIdx& a) -> void
